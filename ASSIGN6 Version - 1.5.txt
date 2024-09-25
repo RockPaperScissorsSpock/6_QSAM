@@ -1,0 +1,729 @@
+//KC03C58A JOB ,'M. JIZAN',MSGCLASS=H
+//*
+//*****************************************************************
+//*                                                               *
+//*  CSCI 465               ASSIGNMENT 6        FALL 2023         *
+//*                                                               *
+//*  DEVELOPER NAME: MILAD JIZAN                                  *
+//*        DUE DATE: 11/15/23 11:59PM                             *
+//*                                                               *
+//*  PURPOSE: THE PURPOSE OF THIS PROJECT IS TO PRACTICE THE      *
+//*           JCL REQUIRED TO USE THE HIGH LEVEL ASSEMBLER,       *
+//*           BINDER, AND FETCH & EXICUTE STEPS. THESE STEPS      *
+//*           ARE REQUIRED FOR TAKING ASSEMBLER SOURCE CODE AND   *
+//*           MAKING SURE THAT IT CAN BE EXICUTED.                *
+//*           THE COMPILE STEP TURNS THE ASSEMBLEY SOURCE CODE TO *
+//*           A NON-EXICUTABLE OBJECT MODULE. THE BINDER STEP     *
+//*           TAKES THE OBJECT MODULE PRODUCED BY THE ASSEMBLER   *
+//*           AS INPUT AND PRODUCES A PROGRAM OBJECT WHICH IS     *
+//*           EXICUTABLE. FINALLY THE FETCH & EXICUTE STEP        *
+//*           RETRIVES THE PROGRAM OBJECT AND EXICUTES THE        *
+//*           PROGRAM.                                            *
+//*****************************************************************
+//*
+//*****************************************************************
+//*                            JSTEP01:                           *
+//*                                                               *
+//*  JSTEP01: THIS IS THE HIGH LEVEL ASSEMBLER STEP, IT EXICUTES  *
+//*           THE PROGRAM: ASMA90, A.K.A., HIGH LEVEL ASSEMBLER.  *
+//*                                                               *
+//*   SYSLIB: DD INDICATING REQUIRED LIBRARY ROUTINES FOR         *
+//*           HIGH LEVEL ASSEMBLER.                               *
+//*                                                               *
+//*    SYSIN: THIS DD CARD INDICATES THE START OF THE INSTREAM    *
+//*           ASSEMBLEY PROGRAM WHICH FOLLOWS.                    *
+//*                                                               *
+//*   SYSLIN: THIS DD CARD TELLS THE SYSTEM WHERE TO STORE THE    *
+//*           OBJECT MODULE THAT RESULTS FROM THE ASSEMBLER       *
+//*                                                               *
+//* SYSPRINT: THIS DD CARD INDICATES WHERE OUTPUT MESSAGES FROM   *
+//*           THE ASSEMBLER ARE TO BE WRITTEN.                    *
+//*                                                               *
+//*    SYSUT: SYSUT1 IS A SCRATCH PAD THAT THE ASSEMBLER          *
+//*           CAN USE TO DO IT'S JOB. SCRATCH PADS ARE TEMPERARY  *
+//*           SPACES WHERE DATA CAN BE WRITTEN DURING ASSEMBLEY.  *
+//*****************************************************************
+//*
+//JSTEP01  EXEC PGM=ASMA90,PARM=ASA
+//*
+//SYSLIB   DD  DSN=SYS1.MACLIB,
+//             DISP=SHR
+//*
+//SYSIN    DD *
+         PRINT  NOGEN                MACRO CALL SUPPRESSION
+******************************************************************
+*                                                                *
+* PROGRAM NAME: SALESRPT                                         *
+* PROGRAMMER:   GEOFFREY D. DECKER    © 2023 Geoffrey D. Decker  *
+* DUE DATE:     08/25/2023                                       *
+*                                                                *
+* FUNCTION:  THIS PROGRAM READS INPUT DATA RECORDS AND THEN      *
+*            WRITES THEM TO STANDARD OUTPUT.                     *
+*                                                                *
+* INPUT:     INDATA - THE INPUT DATA RECORDS READ IN.            *
+*                                                                *
+* OUTPUT:    REPORT - THE INPUT DATA RECORDS WRITTEN OUT.        *
+*                                                                *
+* ENTRY CONDITIONS: NONE.                                        *
+*                                                                *
+* EXIT CONDITIONS:  R15 RETURNS A RETURN CODE.                   *
+*                                                                *
+* NOTES: NONE.                                                   *
+*                                                                *
+******************************************************************
+*
+SALESRPT CSECT                       BEGIN SALESRPT
+*
+         STM   14,12,12(13)          SAVE CALLER'S REGS
+         LR    12,15                 SET R12 TO R15
+         USING SALESRPT,12           ESTABLISH R12 AS 1ST BASE REG
+         LA    14,REGS               R14 -> CURRENT SAVE AREA
+         ST    13,4(,14)             SAVE CALLER'S SAVE AREA ADDR
+         ST    14,8(,14)             SAVE CURRENT SAVE AREA ADDR
+         LR    13,14                 R13 -> CURRENT SAVE AREA
+*
+         LA    11,4095(,12)
+         LA    11,1(,11)
+         USING SALESRPT+4096,11      ESTABLISH R11 AS 2ND BASE REG
+*
+*                                    GET THE DATE AND TIME
+         TIME  DEC,PDAYTIME,LINKAGE=SYSTEM,DATETYPE=MMDDYYYY
+*
+         LINK EP=JOBNAME,PARAM=JOBNAME,VL=1
+         MVC   HSJOBNME(8),JOBNAME
+*
+         MVC   ODATE(10),=X'20206120206120202020'
+         ED    ODATE(10),PDAYTIME+8  MOVE DATE TO OUTPUT
+*
+         MVC   OAMORPM(2),=CL2'AM'
+         MVC   OHOUR(2),=X'2020'
+         ED    OHOUR(2),PDAYTIME     MOVE HOUR TO OUTPUT
+         MVC   OMIN(2),=X'2020'
+         ED    OMIN(2),PDAYTIME+1    MOVE MINUTES TO OUTPUT
+         PACK  PHOUR(2),OHOUR(2)
+*
+*        CP   PHOUR(2),=P'0'         IF CURRENT HOUR != 0
+*        BNE  NOON                   BRANCH TO NOON
+*
+*        ZAP   PHOUR(2),=PL2'12'     OTHERWISE SET HOUR TO 12
+*        SRP   PHOUR(2),1,0
+*        MVC   OHOUR(2),=X'2020'
+*        ED    OHOUR(2),PHOUR
+*        B     NONE
+*
+*NOON     CP    PHOUR,=P'12'         IF CURRENT HOUR != 12
+*        BNE   OTHER                BRANCH TO OTHER
+*
+*        MVC   OAMORPM(2),=CL2'PM'
+*        B     NONE
+*
+*OTHER    CP    PHOUR,=P'12'         IF CURRENT HOUR < 12
+*        BL    NONE                    BRANCH TO NONE
+*
+*        SP    PHOUR(2),=P'12'       PHOUR - 12
+*        MVC   OHOUR(2),=X'2020'
+*        SRP   PHOUR(2),1,0
+*        ED    OHOUR(2),PHOUR
+*        MVC   OAMORPM(2),=CL2'PM'   MAKE PM
+*
+NONE     OPEN  (SALEDCB,(INPUT))     OPEN INPUT FILE
+         LTR   15,15                 CHECK FOR SUCCESSFUL OPEN
+         BZ    OPENOK1               BRANCH IF SUCCESSFUL TO OPENOK1
+         ABEND 222,DUMP              ABEND IF OPEN FAILS & DISPLAY 222
+*
+OPENOK1  OPEN  (RPTDCB,(OUTPUT))     OPEN OUTPUT FILE
+         LTR   15,15                 CHECK FOR SUCCESSFUL OPEN
+         BZ    OPENOK2               BRANCH IF SUCCESSFUL TO OPENOK2
+         ABEND 333,DUMP              ABEND IF OPEN FAILS & DISPLAY 333
+*
+OPENOK2  OPEN  (HSDCB,(OUTPUT))      OPEN HIGH SALES FILE FOR OUTPUT
+         LTR   15,15                 CHECK FOR SUCCESSFUL OPEN
+         BZ    OPENOK3               BRANCH IF SUCCESSFUL TO OPENOK3
+         ABEND 444,DUMP              ABEND IF OPEN FAILS & DISPLAY 444
+*
+OPENOK3  GET   SALEDCB,RECORD          READ THE FIRST RECORD
+*
+         MVC   IFUNDREC(80),RECORD     MOVE RECORD TO IN-FUNDREC
+         PACK  PSHRPRC(3),ISHRPRC(5)   PACK THE SHARE PRICE
+         MVC   OFUNDNME(35),IFUNDNME   MOVE IN-FUNDNME TO OUT-FUNDNME
+         PACK  PCOMPCT1(4),ICOMPCT1(6) PACK COMMISSION PERCENT 1
+         PACK  PCOMPCT2(4),ICOMPCT2(6) PACK COMMISSION PERCENT 2
+         PACK  PCOMPCT3(4),ICOMPCT3(6) PACK COMMISSION PERCENT 3
+*
+         LA    1,OSHRPRC+3             MARK SIGNIFICANT DIGIT
+         MVC   OSHRPRC(7),=X'402021204B2020'
+         EDMK  OSHRPRC(7),PSHRPRC      MOVE PSHRPRC TO OSHPRC
+         BCTR  1,0                     R1 -1
+         MVI   0(1),C'$'               MOVE IN $
+*
+         LA    3,99                    SET REG 3 TO 99
+*
+         GET   SALEDCB,RECORD          READ SECOND RECORD
+*****
+LOOP1    CLI   EOFFLAG,C'Y'            CHECK FOR END OF INPUT DATA
+*
+         BE    ENDLOOP1                BRANCH TO ENDLOOP1 IF EOF
+*
+         AP    RECCTR(2),=PL1'1'       ADD 1 TO RECORD COUNTER
+*
+         MVC   SALEREC(80),RECORD      MOVE RECORD TO IN-SALEREC
+*
+         MVC   OBRNME(20),IBRNCNME     MOVE IN BRNME TO OUT-BRNME
+         MVC   OBROKER(25),IBROKER     MOVE IN BROKER TO OUT-BROKER
+*
+         PACK  PDEPAMT(6),IDEPAMT(10)  PACK DEPOSIT AMOUNT
+         AP    PTDEPAMT(7),PDEPAMT(6)  ADD DEPOSIT TO RUNNING TOTAL
+*
+         LA    1,IDEPAMT+10
+         MVC   ODEPAMT(15),=X'402020206B2020206B2021204B2020'
+         EDMK  ODEPAMT(15),PDEPAMT
+         BCTR  1,0
+         MVI   0(1),C'$'
+*
+         ZAP   PCALC(11),PDEPAMT(6)    ZAP DEPOSIT AMOUNT TO PCALC
+         SRP   PCALC(11),4,0           ADD 4 DECIMAL PLACE
+         DP    PCALC(11),PSHRPRC(3)    CALCULATE SHARE AMOUNT
+         ZAP   PSHRAMT(8),PCALC(8)     ZAP PCALC TO SHARE AMOUNT
+         SRP   PSHRAMT(8),64-1,5       SHIFT RIGHT 1
+         SRP   PSHRAMT(8),1,0          SHLEFT LEFT 1
+*
+         CP    PSHRAMT(8),=P'50000.0000'  IF PSHRAMT < 50000
+         BL    NOTVIP1
+*
+         MVC   HSBRKNME,OBROKER        MOVE BROKER NAME TO HI SALE
+         ZAP   HSSHRAMT(8),PSHRAMT(8)  MOVE SHARE AMOUNT TO HI SALE
+         PUT   HSDCB,HSREC             WRITE RECORD TO HSDCB
+*
+NOTVIP1  AP    PTSHRAMT(7),PSHRAMT     ADD SHRAMT TO RUNNING TOTAL
+         MVC   OSHRAMT(20),=X'4020206B2020206B2020206B2021204B20202020'
+         ED    OSHRAMT(20),PSHRAMT     MOVE PSHRAMT TO OSHRAMT
+*
+         ZAP   PCALC(11),PDEPAMT(6)    ZAP DEPOSIT AMOUNT TO PCALC
+*
+         CLI   ICOMMFLG,C'1'           IF COMFLG = 1
+         BE    MP1                     BRANCH TO MP1
+*
+         CLI   ICOMMFLG,C'2'           IF COMFLG = 2
+         BE    MP2                     BRANCH TO MP2
+*
+         CLI   ICOMMFLG,C'3'           IF COMFLG = 3
+         BE    MP3                     BRANCH TO MP3
+*
+MP1      MP    PCALC(11),PCOMPCT1(4)   CALCULATE WITH COMPCT1
+         B     JUMP1
+*
+MP2      MP    PCALC(11),PCOMPCT2(4)   CALCULATE WITH COMPCT2
+         B     JUMP1
+*
+MP3      MP    PCALC(11),PCOMPCT3(4)   CALCULATE WITH COMPCT3
+*
+JUMP1    SRP   PCALC(11),64-5,5        SHIFT 5 RIGHT
+         ZAP   PCOMAMT(6),PCALC+5(6)   ZAP PCALC TO PSHRAMT
+         SRP   PCOMAMT(6),1,0          LEFT SHIFT 1
+         AP    PTCOMAMT(7),PCOMAMT(6)  ADD COMAMT TO RUNNING TOTAL
+         LA    1,OCOMAMT+10
+         MVC   OCOMAMT(14),=X'4020206B2020206B2021204B2020'
+         EDMK  OCOMAMT(14),PCOMAMT     MOVE PCOMAMT TO OCOMAMT
+         BCTR  1,0
+         MVI   0(1),C'$'
+*
+         C     3,=F'18'
+         BL    WRITE1
+*
+         AP    PPAGECTR(2),=PL1'1'     ADD 1 TO PAGE COUNTER
+         MVC   OPAGECTR(4),=X'40202120'
+         ED    OPAGECTR(4),PPAGECTR    MOVE PPAGECTR TO OPAGECTR
+         SR    3,3                     RESET LINE COUNT
+         PUT   RPTDCB,HEADER1          WRITE HEADER 1
+         PUT   RPTDCB,HEADER2          WRITE HEADER 2
+         PUT   RPTDCB,HEADER3          WRITE HEADER 3
+         PUT   RPTDCB,HEADER4          WRITE HEADER 4
+         PUT   RPTDCB,HEADER5          WRITE HEADER 5
+*
+WRITE1   PUT   RPTDCB,OSALEREC         WRITE THE DETAIL LINE
+         LA    3,1(,3)
+*
+         GET   SALEDCB,RECORD          GET THE NEXT RECORD
+*
+         B     LOOP1                   BRANCH TO TOP OF LOOP1
+********
+ENDLOOP1 ED    ORECCTR(4),RECCTR       EDIT REC COUNTER INTO TOTALS
+*
+         CLOSE HSDCB                   CLOSE THE HI SALES FILE
+*
+         AP    PPAGECTR(2),=PL1'1'     ADD 1 TO PAGE COUNTER
+         MVC   OPAGECTR(4),=X'40202120'
+         ED    OPAGECTR(4),PPAGECTR    MOVE PPAGECTR TO OPAGECTR
+*
+         PUT   RPTDCB,HEADER1          WRITE HEADER 1
+         PUT   RPTDCB,HEADER2          WRITE HEADER 2
+         PUT   RPTDCB,HEADER3          WRITE HEADER 3
+         PUT   RPTDCB,TOTHEAD1         WRITE TOTALS HEADER 1
+         PUT   RPTDCB,TOTHEAD2         WRITE TOTALS HEADER 2
+*
+         LA    1,OTDEPAMT+16
+         MVC   OTDEPAMT(21),=X'4020206B2020206B2020206B2021204B2020'
+         EDMK  OTDEPAMT(21),PTDEPAMT
+         BCTR  1,0                     R1 -1
+         MVI   0(1),C'$'               MOVE IN $
+*
+         SRP   PTSHRAMT(7),1,0         SHLEFT LEFT 1
+         MVC   OTSHRAMT(16),=X'4020206B2020206B2021204B20202020'
+         ED    OTSHRAMT(16),PTSHRAMT
+*
+         LA    1,OTCOMAMT+9
+         MVC   OTCOMAMT(17),=X'40206B2020206B2020206B2021204B2020'
+         EDMK  OTCOMAMT(17),PTCOMAMT
+         BCTR  1,0
+         MVI   0(1),C'$'
+*
+         PUT   RPTDCB,TOTALS           WRITE THE TOTALS LINE
+*
+*************************** HI SALES *******************************
+*
+         MVI   EOFFLAG,C'N'          RESET EOFFLAG
+         LA    3,99                  SET REG 3 TO 99
+*
+         OPEN  (HSDCB,(INPUT))       OPEN HIGH SALES FILE FOR OUTPUT
+         LTR   15,15                 CHECK FOR SUCCESSFUL OPEN
+         BZ    OPENOK4               BRANCH IF SUCCESSFUL TO OPENOK4
+         ABEND 555,DUMP              ABEND IF OPEN FAILS & DISPLAY 555
+*
+OPENOK4  GET   HSDCB,IHSREC          PRIMING READ
+         ZAP   RECCTR(2),=P'0'       RESET RECORD COUNTER
+*
+LOOP2    CLI   EOFFLAG,C'Y'          CHECK FOR END OF INPUT DATA
+*
+         BE    ENDLOOP2              BRANCH TO ENDLOOP2 IF EOF
+*
+*        AP    RECCTR(2),=PL1'1'     ADD 1 TO RECORD COUNTER
+*
+         AP    PTHSBRKR(2),=PL1'1'   ADD 1 TO HI SALE BROKER COUNT
+*
+         MVC   HSBRKNME,IHBROKER     MOVE IHBROKER TO HSBRKNME
+         MVC   OHSBRNME,HSBRKNME     MOVE HSBRKNME TO OHSBRNME
+         MVC   OHSSHR(20),=X'4020206B2020206B2020206B2021204B20202020'
+         AP    PTHSHARE(8),IHSHRAMT(8)  ADD SHRAMT TO RUNNING TOTAL
+         ED    OHSSHR(20),IHSHRAMT
+*
+         C     3,=F'18'              IF R3 < 18 BRANCH TO WRITE2
+         BL    WRITE2                BRANCH TO WRITE2
+*
+         SR    3,3                   RESET LINE COUNT
+         AP    PPAGECTR(2),=PL1'1'   ADD 1 TO PAGE COUNTER
+         MVC   OPAGECTR(4),=X'40202120'
+         ED    OPAGECTR(4),PPAGECTR    MOVE PPAGECTR TO OPAGECTR
+         MVC   HSHOUR(2),OHOUR       COPY HOUR FROM HEADER 2
+         MVC   HSMIN(2),OMIN         COPY MIN FROM HEADER 2
+         MVC   HSAMORPM(2),OAMORPM    COPY AM OR PM FROM HEADER 2
+         PUT   RPTDCB,HEADER1        WRITE HEADER 1
+         PUT   RPTDCB,HSHEAD1        WRITE HI SALE HEADER 1
+         PUT   RPTDCB,HEADER3        WRITE HEADER 3
+         PUT   RPTDCB,HSHEAD2        WRITE HI SALE HEADER 2
+         PUT   RPTDCB,HSHEAD3        WRITE HI SALE HEADER 3
+*
+WRITE2   PUT   RPTDCB,OHSREC         WRITE THE DETAIL LINE
+         LA    3,1(,3)               ADD 1 TO R3
+*
+         GET   HSDCB,IHSREC          GET THE NEXT RECORD
+*
+         B     LOOP2                 BRANCH TO TOP OF LOOP2
+*
+ENDLOOP2 DS    0H
+*
+         AP    PPAGECTR(2),=PL1'1'     ADD 1 TO PAGE COUNTER
+         MVC   OPAGECTR(4),=X'40202120'
+         ED    OPAGECTR(4),PPAGECTR    MOVE PPAGECTR TO OPAGECTR
+         MVC   HSTJBNME(8),JOBNAME     COPY JOBNAME FROM HEADER 2
+         MVC   HSTHOUR(2),OHOUR         COPY HOUR FROM HEADER 2
+         MVC   HSTMIN(2),OMIN           COPY MIN FROM HEADER 2
+         MVC   HSTAMPM(2),OAMORPM     COPY AM OR PM FROM HEADER 2
+*
+         PUT   RPTDCB,HEADER1        WRITE HEADERS FOR HI SALE TOT
+         PUT   RPTDCB,HSTHEAD0
+         PUT   RPTDCB,HEADER3
+         PUT   RPTDCB,HSTHEAD1
+         PUT   RPTDCB,HSTHEAD2
+*
+         ED   OHRECCTR(4),PTHSBRKR  MOVE RECORD COUT TO OUTPUT
+         ED   OHSHRAMT(20),PTHSHARE MOVE TOTAL HI SHR AMOUNT TO OUT
+
+         PUT   RPTDCB,HSTOTALS       WRITE TOTALS LINE
+*
+         CLOSE (SALEDCB,,RPTDCB,,HSDCB)  CLOSE THE DCBs
+*
+         SR    15,15                   SET RC TO 0
+         L     13,4(,13)               R13 -> CALLER'S SAVE AREA
+         L     14,12(,13)              RESTORE R14
+         LM    0,12,20(13)             RESTORE R0 THROUGH R12
+*
+         BR    14                      RETURN TO CALLER
+*
+         ORG   SALESRPT+((*-SALESRPT+31)/32)*32
+         DC    C'HERE IS THE STORAGE FOR SALESRPT'
+*
+         LTORG                       LTORG TO ORGANIZE LITERALS
+*
+REGS     DC    18F'0'                MAINREGS FOR STANDARD LINKAGE
+*
+RECCTR   DC    PL2'0'                PACKED RECORD CTR FIELD
+*
+RECORD   DC    80C'@'                INPUT BUFFER FILL WITH '@'
+*
+*
+*
+*
+*
+*
+********************** USER STORAGE ******************************
+*
+*
+*                        INPUT
+IFUNDREC DS    0H                    FUND RECORD LABEL
+ISHRPRC  DS    ZL5                   IN SHARE PRICE
+IFUNDNME DS    CL35                  IN FUND NAME
+ICOMPCT1 DS    ZL6                   IN COMMISSION PERCENT 1
+ICOMPCT2 DS    ZL6                   IN COMMISSION PERCENT 2
+ICOMPCT3 DS    ZL6                   IN COMMISSION PERCENT 3
+         DS    CL22                  UNUSED
+*
+SALEREC  DS    0H                    SALE RECORD LABEL
+IBRNCNME DS    CL20                  IN BRANCH NAME
+IBROKER  DS    CL25                  IN BROKER NAME
+IDEPAMT  DS    ZL10                  IN DEPOSIT AMOUNT
+         DS    CL4                   UNUSED
+ICOMMFLG DS    ZL1                   IN COMMISSION FLAG
+         DS    CL20                  UNUSED
+*
+IHSREC   DS    0H                    IN HIGH SALE RECORD LABEL
+IHBROKER DS    CL25                  INPUT HIGH SALE BROKER
+IHSHRAMT DC    PL8'0'                INPUT HIGH SALE SHARE AMOUNT
+         DC    47C' '                UNUSED
+*
+HSREC    DS    0H                    HIGH SALE RECORD LABEL
+HSBRKNME DS    CL25                  INPUT HIGH SALE BROKER
+HSSHRAMT DC    PL8'0'                INPUT HIGH SALE SHARE AMOUNT
+         DC    47C' '                UNUSED
+*
+IHOUR    DS    ZL2                   INPUT FEILD FOR HOUR
+*
+PDAYTIME DC    PL16'0'               INPIT FOR DATE AND TIME
+AMORPM   DS    CL2'AM'               TIME AM OR PM INDICATOR
+*
+*
+************************** PACKED *********************************
+PPAGECTR DC    PL2'0'                PACKED PAGE COUNTER
+PDEPAMT  DC    PL6'0'                PACKED DEPOSIT AMOUNT
+PSHRAMT  DC    PL8'0'                PACKED SHARE AMOUNT
+PSHRPRC  DC    PL3'0'                PACKED SHARE PRICE
+PCOMAMT  DC    PL6'0'                PACKED COMMISSION AMOUNT
+PCOMPCT1 DC    PL4'0'                PACKED COMMISSION PERCENT 1
+PCOMPCT2 DC    PL4'0'                PACKED COMMISSION PERCENT 2
+PCOMPCT3 DC    PL4'0'                PACKED COMMISSION PERCENT 3
+PCALC    DC    PL11'0'               PACKED FEILD FOR CALCULATIONS
+PHOUR    DC    PL2'0'                PACKED FEILD FOR TIME
+*
+PTDEPAMT DC    PL7'0'                PACKED TOTAL DEPOSIT AMOUNT
+PTSHRAMT DC    PL7'0'                PACKED TOTAL SHARE AMOUNT
+PTCOMAMT DC    PL7'0'                PACKED TOTAL COMMISSION AMOUNT
+*
+PTHSBRKR DC    PL2'0'                PACKED TOT HI SALES BROKER COUNT
+PTHSHARE DC    PL8'0'                PACKED TOT HI SALE SHARE AMOUNT
+*
+*
+*
+************************* OUTPUT *********************************
+OSALEREC DC    C'0'                  SALE RECORD CARRIAGE CONTROL
+OBRNME   DS    CL20                  OUT BRANCH NAME
+         DC    9C' '                   SPACES
+OBROKER  DS    CL25                  OUT BROKER NAME
+         DC    10C' '                  SPACES
+ODEPAMT  DS    CL15                  OUT DEPOSIT AMOUNT
+         DC    9C' '                   SPACES
+OSHRAMT  DS    CL20                  OUT SHARE AMOUNT
+         DC    10C' '                  SPACES
+OCOMAMT  DS    CL14                  OUT COMMISSION AMOUNT
+*
+*
+OHSREC   DC    C'0'                  HI SALE RECORD CARRIAGE CONTROL
+         DC    40C' '
+OHSBRNME DS    CL25                  OUT HIGH SALES BROKER NAME
+         DC    7C' '
+OHSSHR   DS    CL20                  OUT HIGH SALES SHARE AMOUNT
+         DC    40C' '
+*
+*
+TOTALS   DC    C'0'                  TOTALS1 CARRIAGE CONTROL
+         DC    48C' '                LABEL FOR RECORD COUNT
+ORECCTR  DC    X'40202120'           OUTPUT FOR RECORD COUNT
+         DC    9C' '
+OTDEPAMT DS    CL21                  OUTPUT FOR TOTAL DEPOSIT AMOUNT
+         DC    10C' '
+OTSHRAMT DS    CL16                  OUTPUT FOR TOTAL SHARE AMOUNT
+         DC    7C' '
+OTCOMAMT DS    CL17                  OUTPUT FOR TOTAL COMMISSION
+*
+*
+HSTOTALS DC    C'0'                  TOTALS1 CARRIAGE CONTROL
+         DC    54C' '
+OHRECCTR DC    X'40202120'           OUTPUT FOR RECORD COUNT
+         DC    13C' '
+OHSHRAMT DC    X'4020206B2020206B2020206B2021204B20202020'
+         DC    41C' '
+*
+************************ HEADERS *********************************
+HEADER1  DC    C'0'                  HEADER1 CARRIAGE CONTROL
+ODATE    DS    CL10                  OUTPUT FOR CURRENT DATE
+         DC    39C' '
+OFUNDNME DS    CL35                  MUTUAL FUND NAME
+         DC    39C' '
+         DC    C'PAGE:'
+OPAGECTR DS    CL4                   OUTPUT PAGE COUNT
+*
+*
+HEADER2  DC    C' '                  HEADER2 CARRIAGE CONTROL
+OHOUR    DS    ZL2                   OUTPUT FOR CURRENT HOUR
+         DC    X'7A'                 :
+OMIN     DS    CL2                   OUTPUT FOR CURRENT MIN
+         DC    C' '
+OAMORPM  DS    CL2                   OUTPUT TIME AM/PM INDICATOR
+         DC    41C' '
+OTITLE   DC    CL35'BROKER SALES AND COMMISSIONS REPORT'
+         DC    31C' '
+         DC    C'JOBNAME: '
+JOBNAME  DC    C'JOBNAMEB'           OUTPUT FEILD FOR JOB NAME
+*
+*
+HEADER3  DC    C'0'                  HEADER3 CARRIAGE CONTROL
+         DC    55C' '
+         DC    C'SHARE PRICE:'
+         DC    C' '
+OSHRPRC  DS    CL7                   OUT SHARE PRICE
+         DC    57C' '
+*
+*
+HEADER4  DC    C'0'                  HEADER4 CARRIAGE CONTROL
+         DC    C'BRANCH NAME'        BRANCH NAME
+         DC    18C' '
+         DC    C'BROKER NAME'        BROKER NAME
+         DC    25C' '
+         DC    C'DEPOSIT AMOUNT'     DEPOSIT AMOUNT
+         DC    17C' '
+         DC    C'SHARE AMOUNT'       SHARE AMOUNT
+         DC    14C' '
+         DC    C'COMMISSION'         COMMISSION
+*
+*
+HEADER5  DC    C' '                  HEADER5 CARRIAGE CONTROL
+         DC    20C'-'                BRANCH NAME DASHES
+         DC    9C' '
+         DC    25C'-'                BROKER NAME DASHES
+         DC    11C' '
+         DC    14C'-'                DEPOSIT AMOUNT DASHES
+         DC    11C' '
+         DC    18C'-'                SHARE AMOUNT DASHES
+         DC    10C' '
+         DC    14C'-'                COMMISSION DASHES
+*
+*
+TOTHEAD1 DC    C'0'                  TOT HEADER 1 CARRIAGE CONTROL
+         DC    37C' '
+         DC    C'NUMBER OF SALES'    NUMBER OF SALES COLUMN TITLE
+         DC    9C' '
+         DC    C'TOTAL SALES AMOUNT' TOTAL SALES AMOUNT COLUMN TITLE
+         DC    11C' '
+         DC    C'TOTAL SHARE AMOUNT' TOTAL SHARE AMOUNT COLUMN TITLE
+         DC    8C' '
+         DC    C'TOTAL COMMISSION'   TOTAL COMMISSION COLUMN TITLE
+*
+*
+TOTHEAD2 DC    C' '                  TOT HEADER 2 CARRIAGE CONTROL
+         DC    37C' '
+         DC    15C'-'                TOTAL NUMBER OF SALES DASHES
+         DC    9C' '
+         DC    18C'-'                TOTAL SALES AMOUNT DASHES
+         DC     7C' '
+         DC    22C'-'                TOTAL SHARE AMOUNT DASHES
+         DC     6C' '
+         DC    18C'-'                TOTAL COMMISSION AMOUNT DASHES
+*
+*
+HSHEAD1  DC    C' '                  HS HEADER 2 CARRIAGE CONTROL
+HSHOUR   DS    CL2                   OUTPUT FOR CURRENT HOUR
+         DC    X'7A'                 :
+HSMIN    DS    CL2                   OUTPUT FOR CURRENT MIN
+         DC    C' '
+HSAMORPM DS    CL2                   OUTPUT TIME AM/PM INDICATOR
+         DC    47C' '
+HSTITLE  DC    CL25'BROKER LARGE SALES REPORT'
+         DC    35C' '
+         DC    C'JOBNAME: '
+HSJOBNME DC    C'JOBNAMEB'           OUTPUT FEILD FOR JOB NAME
+*
+*
+HSHEAD2  DC    C'0'                  HI SALE HEADER 2 CARRIAGE CONTROL
+         DC    40C' '
+         DC    C'HIGH SALES BROKER NAME'
+         DC    7C' '
+         DC    C'HIGH SALES SHARE AMOUNT'
+         DC    40C' '
+*
+*
+HSHEAD3  DC    C' '                  HI SALE HEADER 3 CARRIAGE CONTROL
+         DC    40C' '
+         DC    22C'-'
+         DC    7C' '
+         DC    23C'-'
+         DC    40C' '
+*
+*
+HSTHEAD0 DC    C' '                  HI SALE TOTALS HEADER 0
+HSTHOUR  DS    ZL2                   OUTPUT FOR CURRENT HOUR
+         DC    X'7A'                 :
+HSTMIN   DS    CL2                   OUTPUT FOR CURRENT MIN
+         DC    C' '
+HSTAMPM  DS    CL2                   OUTPUT TIME AM/PM INDICATOR
+         DC    42C' '
+         DC    C'BROKER LARGE SALES REPORT TOTALS'
+         DC    33C' '
+         DC    C'JOBNAME: '
+HSTJBNME DC    C'JOBNAMEB'           OUTPUT FEILD FOR JOB NAME
+*
+*
+HSTHEAD1 DC    C'0'                  HI SALE TOTALS HEADER 1
+         DC    30C' '
+         DC    C'NUMBER OF HIGH SALES BROKERS'
+         DC    4C' '
+         DC    C'TOTAL HIGH SALES SHARE AMOUNT'
+         DC    41C' '
+*
+*
+HSTHEAD2 DC    C' '                  HI SALE TOTALS HEADER 2
+         DC    30C' '
+         DC    28C'-'
+         DC    4C' '
+         DC    29C'-'
+         DC    41C' '
+*
+****************************************************************
+*
+*
+*
+*  INPUT DCB
+*
+SALEDCB  DCB   DDNAME=INDATA,                                          X
+               DEVD=DA,                                                X
+               DSORG=PS,                                               X
+               MACRF=GM,                                               X
+               RECFM=FB,                                               X
+               LRECL=80,                                               X
+               EODAD=EOFRTN1
+*
+*  INPUT DCB'S EOF FLAG AND EOF ROUTINE
+*
+EOFFLAG  DC    C'N'                 EOFFLAG FOR INPUT FILE
+*
+EOFRTN1  MVI   EOFFLAG,C'Y'         SET EOF FLAG TO Y
+         BR    14                   BRANCH TO STMT FOLLOWING GET
+*
+*  OUTPUT DCB
+*
+RPTDCB   DCB   DDNAME=RPTDATA,                                         X
+               DEVD=DA,                                                X
+               DSORG=PS,                                               X
+               MACRF=PM,                                               X
+               RECFM=FBA,                                              X
+               LRECL=133,                                              X
+               BLKSIZE=2660
+*
+*  HIGH SALES DCB
+*
+HSDCB    DCB   DDNAME=HISALE,                                          X
+               DEVD=DA,                                                X
+               DSORG=PS,                                               X
+               MACRF=(GM,PM),                                          X
+               RECFM=FB,                                               X
+               LRECL=80,                                               X
+               EODAD=EOFRTN2
+*
+EOFRTN2  MVI   EOFFLAG,C'Y'         SET EOF FLAG TO Y
+         BR    14                   BRANCH TO STMT FOLLOWING GET
+*
+         END   SALESRPT
+/*
+//SYSLIN   DD DSN=&&OBJMOD,
+//            SPACE=(CYL,(1,1)),
+//            DISP=(MOD,PASS)
+//*
+//SYSPRINT DD SYSOUT=*
+//*
+//SYSUT1   DD SPACE=(CYL,(1,1))
+//*
+//*****************************************************************
+//*                            JSTEP02                            *
+//*                                                               *
+//*  JSTEP02: THIS IS THE BINDER STEP WHICH EXICUTES              *
+//*           THE PROGRAM: IEWBLINK, (A.K.A., THE BINDER) IF      *
+//*           JSTEP01 RETURNED 0 WHICH MEANS IT RAN SUCCESSFULLY  *
+//*                                                               *
+//*   SYSLIB: DD INDICATING REQUIRED LIBRARY ROUTINES FOR BINDER  *
+//*                                                               *
+//*   SYSLIN: DD CARD DESCRIBING THE TEMPERARY DATA SET HOLDING   *
+//*           THE OBJECT MODULE BEING TAKEN AS INPUT BY THE       *
+//*           BINDER.                                             *
+//*                                                               *
+//*  SYSLMOD: DD CARD DESCRIBING THE LOCATION TO STORE THE        *
+//*           EXICUTABLE LOAD MODULE PRODUCED BY THE BINDER.      *
+//*                                                               *
+//* SYSPRINT: DD CARD INDICATIONG WHERE MESSAGES FROM THE BINDER  *
+//*           ARE TO BE WRITTEN. IN THIS CASE: STANDARD OUTPUT.   *
+//*                                                               *
+//*****************************************************************
+//*
+//JSTEP02  EXEC PGM=IEWBLINK,COND=(0,LT)
+//*
+//SYSLIB   DD DSN=CEE.SCEELKEX,DISP=SHR
+//         DD DSN=CEE.SCEELKED,DISP=SHR
+//*
+//SYSLIN   DD DSN=&&OBJMOD,
+//            DISP=(MOD,DELETE,DELETE)
+//*
+//SYSLMOD  DD DSN=KC03C58.CSCI465.LOADLIB(SALESRPT),
+//            SPACE=(1024,(50,20,1)),DSNTYPE=LIBRARY,
+//            DISP=(MOD,KEEP,KEEP)
+//*
+//SYSPRINT DD SYSOUT=*
+//*
+//*****************************************************************
+//*                            JSTEP03                            *
+//*                                                               *
+//*  JSTEP03: THIS IS THE FETCH AND EXICUTE STEP. IT WILL         *
+//*           FETCH THE LOAD MODULE FROM THE LOADLIB PDSE         *
+//*           AND EXICUTE IT.                                     *
+//*                                                               *
+//*  STEPLIB: THIS DD CARD TELLS THE SYSTEM WHERE TO LOOK         *
+//*           FOR THE LOAD LIBRARY.                               *
+//*                                                               *
+//*   INDATA: THIS DD CARD DESCRIBES THE LOCATION OF THE          *
+//*           DATA SET CONTAINING THE INPUT FOR THE PROGRAM       *
+//*                                                               *
+//*  RPTDATA: THIS DD CARD INDICATES WHERE MESSAGES FROM          *
+//*           THE PROGRAM ARE TO BE WRITTEN IN THIS CASE,         *
+//*           STANDARD OUTPUT.                                    *
+//*                                                               *
+//*****************************************************************
+//*
+//JSTEP03  EXEC PGM=SALESRPT,COND=(0,LT)
+//*
+//STEPLIB  DD DSN=KC03C58.CSCI465.LOADLIB,DISP=(MOD,KEEP,KEEP)
+//         DD DSN=KC02322.CSCI465.LOADLIB,DISP=SHR
+//*
+//INDATA   DD DSN=KC02322.CSCI465.DATAFA23(DATA6),
+//            DISP=SHR
+//*
+//HISALE   DD DSN=&&TEMP1,
+//            SPACE=(TRK,(1,1)),
+//            DISP=(MOD,DELETE,DELETE)
+//*
+//RPTDATA  DD SYSOUT=*
+//
